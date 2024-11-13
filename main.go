@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"bufio"
 	"os"
+	"github.com/jmsMaupin1/pokedex/internal/pokeapi"
 )
 
 type cliCommand struct {
@@ -30,6 +31,11 @@ func main() {
 	var cliCommandMap map[string]cliCommand
 	var shouldExit bool
 
+	client, err := pokeapi.NewClient("https://pokeapi.co/api/v2")
+	if err != nil {
+		fmt.Println(fmt.Sprintf("Error initializing client: %v", err))
+	}
+
 	helpCallback := func() error {
 		return printHelp(cliCommandMap)
 	}
@@ -38,6 +44,30 @@ func main() {
 		shouldExit = true
 		return nil
 	}
+	
+	mapCallback := func() error {
+		if err := client.GetNextLocationBatch(); err != nil {
+			return err
+		}
+
+		for _, location := range client.LocationResults.Results {
+			fmt.Println(location.Name)
+		}
+
+		return nil
+	}
+
+	mapbCallback := func() error {
+		if err := client.GetPreviousLocationBatch(); err != nil {
+			return err
+		}
+
+		for _, location := range client.LocationResults.Results {
+			fmt.Println(location.Name)
+		}
+
+		return nil
+	}	
 
 	cliCommandMap = map[string]cliCommand {
 		"help": {
@@ -50,6 +80,16 @@ func main() {
 			desc: "Exits the program",
 			callback: exitCallback,
 		},
+		"map": {
+			name: "map",
+			desc: "lists the next 20 locations",
+			callback: mapCallback,
+		},
+		"mapb": {
+			name: "mapb",
+			desc: "lists the previous 20 locations",
+			callback: mapbCallback,
+		},	
 	}
 
 
@@ -63,7 +103,10 @@ func main() {
 		if command, ok := cliCommandMap[scanner.Text()]; !ok {
 			helpCallback()
 		} else {
-			command.callback()
+			err := command.callback()
+			if err != nil {
+				fmt.Println(fmt.Sprintf("Error: %v", err))
+			}
 		}
 	}	
 }
