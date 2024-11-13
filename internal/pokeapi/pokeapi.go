@@ -1,11 +1,15 @@
 package pokeapi
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/url"
-	"encoding/json"
-	"bytes"
-	"fmt"
+	"time"
+
+	"github.com/jmsMaupin1/pokedex/internal/pokecache"
 )
 
 type LocationAreaResults struct {
@@ -24,6 +28,7 @@ type client struct {
 	LocationResults LocationAreaResults
 	baseURL *url.URL
 	httpClient *http.Client
+	cache *pokecache.Cache
 }
 
 func NewClient(baseURL string) (*client, error) {
@@ -32,10 +37,13 @@ func NewClient(baseURL string) (*client, error) {
 		return nil, err
 	}
 
+	cache := pokecache.NewCache(5 * time.Second)
+
 	client := &client {
 		LocationResults: LocationAreaResults{},
 		httpClient: &http.Client{},
 		baseURL: u,
+		cache: &cache,
 	}
 
 	return client, nil
@@ -61,27 +69,35 @@ func (c *client) newRequest(method string, fullURL string, body interface{}) (*h
 }
 
 func (c *client) GetNextLocationBatch() (error) {
-	var req *http.Request
-	var err error
+	var locationURL string
+	var data io.ReadCloser
 
 	if c.LocationResults.Next != nil {
-		req, err = c.newRequest("GET", *c.LocationResults.Next, nil)
+		locationURL = *c.LocationResults.Next
 	} else {
-		req, err = c.newRequest("GET", c.baseURL.String() + "/location-area/", nil)
-	}
-	
-	if err != nil {
-		return err
+		locationURL = c.baseURL.String() + "/location-area/"
 	}
 
-	res, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
+	val, ok := c.cache.Get(locationURL)
 
-	defer res.Body.Close()
+	if ok {
+		data = io.NopCloser(bytes.NewReader(val))
+	} else {
+		req, err := c.newRequest("GET", locationURL, nil)
+		if err != nil {
+			return err
+		}
 
-	decoder := json.NewDecoder(res.Body)
+		res, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil
+		}
+
+		defer res.Body.Close()
+		data = res.Body
+	}	
+
+	decoder := json.NewDecoder(data)
 	if err := decoder.Decode(&c.LocationResults); err != nil {
 		return err
 	}
@@ -90,27 +106,36 @@ func (c *client) GetNextLocationBatch() (error) {
 }
 
 func (c *client) GetPreviousLocationBatch() (error) {	
+	var data io.ReadCloser
+
 	if c.LocationResults.Previous == nil {
 		return fmt.Errorf("Already on first page")
 	}
+	
+	val, ok := c.cache.Get(*c.LocationResults.Previous)
 
-	req, err := c.newRequest("GET", *c.LocationResults.Previous, nil)
-	if err != nil {
-		return err
-	}
+	if ok {
+		data = io.NopCloser(bytes.NewReader(val))
+	} else {
+		req, err := c.newRequest("GET", *c.LocationResults.Previous, nil)
+		if err != nil {
+			return err
+		}
 
-	res, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
+		res, err := c.httpClient.Do(req)
+		if err != nil {
+			return err
+		}
 
-	defer res.Body.Close()
+		defer res.Body.Close()
 
-	decoder := json.NewDecoder(res.Body)
+		data = res.Body
+	}	
+
+	decoder := json.NewDecoder(data)
 	if err := decoder.Decode(&c.LocationResults); err != nil {
 		return err
 	}
 
 	return nil
 }
-
