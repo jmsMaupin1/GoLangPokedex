@@ -83,7 +83,7 @@ func main() {
 		}
 	}
 
-	inspect := func(arguments ...string) error {
+	inspectCallback := func(arguments ...string) error {
 		pokemon, ok := client.CaughtPokemon[arguments[0]]
 		if !ok {
 			return fmt.Errorf("You havent caught %s yet", arguments[0])
@@ -117,6 +117,15 @@ func main() {
 			}
 			return nil
 		}
+	}
+
+	pokedexCallback := func(arguments ...string) error {
+		fmt.Println("Your Pokedex")
+		for pokemon, _ := range client.CaughtPokemon {
+			fmt.Println(fmt.Sprintf(" - %s", pokemon))
+		}
+
+		return nil
 	}
 
 	cliCommandMap = map[string]cliCommand {
@@ -153,7 +162,12 @@ func main() {
 		"inspect": {
 			name: "inspect <pokemon name>",
 			desc: "Inspects a given pokemon",
-			callback: inspect,
+			callback: inspectCallback,
+		},
+		"pokedex": {
+			name: "pokedex",
+			desc: "Lists all caught pokemon",
+			callback: pokedexCallback,
 		},
 	}
 
