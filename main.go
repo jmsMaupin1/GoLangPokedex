@@ -22,7 +22,7 @@ func (c cliCommand) getHelpString() string {
 }
 
 func printHelp(commands map[string]cliCommand) error {
-	for name, _ := range commands {
+	for name := range commands {
 		fmt.Println(commands[name].getHelpString())
 	}
 
@@ -38,16 +38,16 @@ func main() {
 		fmt.Println(fmt.Sprintf("Error initializing client: %v", err))
 	}
 
-	helpCallback := func(arguments... string) error {
+	helpCallback := func(arguments ...string) error {
 		return printHelp(cliCommandMap)
 	}
 
-	exitCallback := func(arguments... string) error {
+	exitCallback := func(arguments ...string) error {
 		shouldExit = true
 		return nil
 	}
 	
-	mapCallback := func(arguments... string) error {
+	mapCallback := func(arguments ...string) error {
 		if err := client.GetNextLocationBatch(); err != nil {
 			return err
 		}
@@ -59,7 +59,7 @@ func main() {
 		return nil
 	}
 
-	mapbCallback := func(arguments... string) error {
+	mapbCallback := func(arguments ...string) error {
 		if err := client.GetPreviousLocationBatch(); err != nil {
 			return err
 		}
@@ -71,7 +71,7 @@ func main() {
 		return nil
 	}	
 
-	exploreCallback := func(arguments... string) error {
+	exploreCallback := func(arguments ...string) error {
 		if info, err := client.GetLocationInformation(arguments[0]); err != nil {
 			return err
 		} else {
@@ -83,16 +83,28 @@ func main() {
 		}
 	}
 
-	catchCallback := func(arguments... string) error {
-		/*
-			chance of capture will be inversely proportional to the base experience
-			of the pokemon over the total base experience of all pokemon. So the larger
-			the pokemons base experience is, the harder it is to catch.
+	inspect := func(arguments ...string) error {
+		pokemon, ok := client.CaughtPokemon[arguments[0]]
+		if !ok {
+			return fmt.Errorf("You havent caught %s yet", arguments[0])
+		}
 
-			currently the total base experience of every pokemon totaled is: 214555
-		*/
-		const totalPokemonBaseXP = 214555
+		fmt.Println(fmt.Sprintf("Name %s", pokemon.Name))
+		fmt.Println(fmt.Sprintf("Height: %d", pokemon.Height))
+		fmt.Println(fmt.Sprintf("Weight: %d", pokemon.Weight))
+		fmt.Println("Stats:")
+		for _, stat := range pokemon.Stats {
+			fmt.Println(fmt.Sprintf(" - %s: %d", stat.Stat.Name, stat.BaseStat))
+		}
+		fmt.Println("Types:")
+		for _, t := range pokemon.Types {
+			fmt.Println(fmt.Sprintf(" - %s", t.Type.Name))
+		}
+		
+		return nil
+	}
 
+	catchCallback := func(arguments... string) error {	
 		if pokemon, err := client.GetPokemonInformation(arguments[0]); err != nil {
 			return err
 		} else {
@@ -137,6 +149,11 @@ func main() {
 			name: "catch <pokemon name>",
 			desc: "Attempts to catch a given pokemon name",
 			callback: catchCallback,
+		},
+		"inspect": {
+			name: "inspect <pokemon name>",
+			desc: "Inspects a given pokemon",
+			callback: inspect,
 		},
 	}
 
